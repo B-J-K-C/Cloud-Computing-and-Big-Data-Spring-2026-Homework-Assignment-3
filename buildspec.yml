@@ -3,20 +3,18 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      python: 3.14
+      python: 3.12
   build:
     commands:
       - echo "Preparing Lambda deployment packages..."
-      # Create zip files for Lambdas
-      - zip -j lf1.zip ./lambda-functions/LF1 Photo Index.py
-      - zip -j lf2.zip ./lambda-functions/LF2 Photo Search.py
+      - zip -j lf1.zip "./lambda-functions/LF1 Photo Index.py"
+      - zip -j lf2.zip "./lambda-functions/LF2 Photo Search.py"
   post_build:
     commands:
       - echo "Updating Lambda functions..."
-      # Pushes code to the live Lambda functions
       - aws lambda update-function-code --function-name index-photos --zip-file fileb://lf1.zip
       - aws lambda update-function-code --function-name lambda-search --zip-file fileb://lf2.zip
 artifacts:
   files:
-    - '**/*' # This takes all files
+    - '**/*'
   base-directory: 'front-end/apiGateway-js-sdk'
