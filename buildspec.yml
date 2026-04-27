@@ -6,7 +6,12 @@ phases:
       python: 3.12
   build:
     commands:
+      - echo "Current directory is..."
+      - pwd
+      - echo "Listing all files to debug..."
+      - ls -R
       - echo "Preparing Lambda deployment packages..."
+      # Use the EXACT paths and names from your GitHub repo
       - zip -j lf1.zip "./lambda-functions/LF1 Photo Index.py"
       - zip -j lf2.zip "./lambda-functions/LF2 Photo Search.py"
   post_build:
