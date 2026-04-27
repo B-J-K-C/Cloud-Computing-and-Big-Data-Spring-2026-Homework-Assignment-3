@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Photo Album</title>
+    <script src="lib/axios/dist/axios.standalone.js"></script>
+    <script src="lib/CryptoJS/rollups/crypto-js.js"></script>
+    <script src="lib/url-template/url-template.js"></script>
+    <script src="lib/apiGatewayCore/sigV4Client.js"></script>
+    <script src="lib/apiGatewayCore/apiGatewayClient.js"></script>
+    <script src="lib/apiGatewayCore/simpleHttpClient.js"></script>
+    <script src="lib/apiGatewayCore/utils.js"></script>
+    <script src="apigClient.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; background: #f4f7f6; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .box { border: 1px solid #e0e0e0; padding: 20px; margin-bottom: 20px; border-radius: 8px; }
+        #photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
+        #photo-grid img { width: 100%; height: 180px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
+        input[type="text"] { width: 80%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 10px; }
+        button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; transition: 0.3s; }
+        button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📸 Cloud Photo Album</h1>
+
+    <div class="box">
+        <h3>Search</h3>
+        <input type="text" id="search-query" placeholder="Search for photos (e.g. 'dog and cat')">
+        <button onclick="searchPhotos()">Search</button>
+        <div id="photo-grid"></div>
+    </div>
+
+    <div class="box">
+        <h3>Upload</h3>
+        <input type="file" id="file-upload" accept="image/png, image/jpeg">
+        <input type="text" id="custom-labels" placeholder="Custom labels (comma separated)">
+        <button onclick="uploadPhoto()">Upload to S3</button>
+        <p id="upload-status"></p>
+    </div>
+</div>
+
+<script>
+    // 1. Initialize API Client
+    // If your API uses an API Key, add it here. Otherwise, leave empty.
+    const apigClient = apigClientFactory.newClient({});
+
+    async function searchPhotos() {
+        const query = document.getElementById('search-query').value;
+        const photoGrid = document.getElementById('photo-grid');
+        photoGrid.innerHTML = "Searching...";
+
+        try {
+            // SDK call for GET /search?q={query}
+            const response = await apigClient.searchGet({ q: query }, {}, {});
+            photoGrid.innerHTML = ""; 
+
+            // Assuming your Lambda returns { "results": [...] }
+            const results = response.data.results || response.data; 
+            
+            if (!results || results.length === 0) {
+                photoGrid.innerHTML = "No photos found.";
+                return;
+            }
+
+            results.forEach(photo => {
+                const img = document.createElement('img');
+                // Use the URL returned by Lambda or construct it
+                img.src = photo.url || `https://${photo.bucket}.s3.amazonaws.com/${photo.objectKey}`;
+                photoGrid.appendChild(img);
+            });
+        } catch (error) {
+            console.error("Search Error:", error);
+            photoGrid.innerHTML = "Search failed. Check console and CORS.";
+        }
+    }
+
+    async function uploadPhoto() {
+        const fileInput = document.getElementById('file-upload');
+        const customLabels = document.getElementById('custom-labels').value;
+        const status = document.getElementById('upload-status');
+
+        if (!fileInput.files[0]) {
+            alert("Select a file first!");
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        reader.onload = async function (e) {
+            // Get base64 string without the "data:image/png;base64," prefix
+            const base64Image = e.target.result.split(',')[1];
+            
+            // 2. IMPORTANT: Params must match your API Gateway Method Request
+            const params = {
+                'item': file.name,
+                'bucket': 'bjk-photo-storage',
+                'Content-Type': file.type,
+                'x-amz-meta-customLabels': customLabels
+            };
+
+            try {
+                status.innerText = "Uploading...";
+                // 3. Fixed method name based on your apigClient.js findings
+                await apigClient.photosItemPut(params, base64Image, {});
+                status.innerText = "Success! Image uploaded.";
+            } catch (error) {
+                console.error("Upload Error:", error);
+                status.innerText = "Upload Failed. Check console.";
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+</script>
+
+</body>
+</html>
